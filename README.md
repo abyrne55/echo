@@ -18,12 +18,13 @@ pip install --upgrade numpy scipy matplotlib google-api-python-client
 2. Download/clone the latest source and extract it to your working directory
 3. Register for a Google Developers Key (needed to access the Drive API). This step does NOT grant anyone access to your personal Google Drive. It simply gets you a Google API *client ID* and *secret*, which you'll need to access the Drive API.
   1. Use [this wizard](https://console.developers.google.com/start/api?id=drive) to create or select a project in the Google Developers Console and automatically turn on the API. Click **Continue**, then **Go to credentials**.
-  2. On the next page, select *Google Drive API* under **Which API are you using?**, then select *Other UI (e.g. Windows, CLI tool)* under **Where will you be calling the API from?**. Select *User Data* under **What data will you be accessing?**. Click **What credentials do I need?** to continue.
+  2. On the next page, select *Google Drive API* under **Which API are you using**, then select *Other UI (e.g. Windows, CLI tool)* under **Where will you be calling the API from**. Select *User Data* under **What data will you be accessing**. Click **What credentials do I need** to continue.
   3. Set **Name** to *BURPG Echo*, then click **Create client ID**
   4. Select any email address from the **Email address** selector. (Please note that this email may be shown under "Developer Info" as the end-user is signing in.) Set **Product name shown to users** to *BURPG Echo*. Click **Continue**.
   5. Finally, click **Download**, and save the downloaded file as *client_secrets.json* in your working directory
-**Note: Keep your *client_secrets.json* file to yourself.** If it's shared, someone could abuse Google's API while using your client ID and secret, which could cause your Google Developer account to be locked down, or worse.
 4. You're done! Now read the usage instructions below
+
+**Warning: Keep your *client_secrets.json* file to yourself.** If it's shared, someone could abuse Google's API while using your client ID and secret, which could cause your Google Developer account to be locked down, or worse.
 
 ## Basic Usage
 1. Ensure the directory you'd like Echo to scan is fully readable by your user, and ensure Echo can write to its working directory
