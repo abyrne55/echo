@@ -15,11 +15,14 @@ import getopt
 import sys
 import os
 import time
-from remote_storage import RemoteStorage as rs
+from datetime import datetime
+from remote_storage import GoogleDrive
+from echo_logger import Logger
 
 ### CONSTANTS ###
 VIDEO_FILE_TYPES = (".mp4", ".mov", ".avi")
 DATA_FILE_TYPES = (".csv")
+APP_START_TIME = int(round(time.time() * 1000))
 
 ### GLOBALS ###
 # Interactive Mode: shows graph in pop-up windows without saving them to file
@@ -35,38 +38,15 @@ search_path = None
 # the search_path
 secret_path = None
 
-### HELPER METHODS ###
-
 
 def print_help():
     """
     Prints the help text to terminal (invoked by adding the -h flag)
     """
     print("BURPG Echo\n"
-          "TODO: Add help text\n")
-
-
-def log(message):
-    """
-    Logs a message to the console and (if log_path is set) a file
-
-    :param message: the message to be logged
-    """
-    print(message)
-    if log_path != None:
-        with open("echo.log", "a") as logfile:
-            logfile.write("[" + str(int(time.time())) + "] " + message + "\n")
-
-
-def log_verbose(message):
-    """
-    Logs a message to the console and (if log_path is set) a file, but only if
-    verbose_mode is enabled
-
-    :param message: the verbose message to be logged
-    """
-    if verbose_mode:
-        log(message)
+          "Usage: " + os.path.basename(__file__) + " -p search_path [-ahilv] [-s secret_path]\n"
+          "\n"
+          "See README.md for command line help")
 
 
 # Handle Command Line Options
@@ -84,44 +64,47 @@ for opt, arg in opts:
         sys.exit()
     elif opt in ("-l", "--log"):
         log_path = os.getcwd() + "/echo.log"
-        log_verbose("Logging to " + os.getcwd() + "/echo.log")
     elif opt in ("-v", "--verbose"):
         verbose_mode = True
-        log_verbose("Entering Verbose Mode")
     elif opt in ("-a", "--automatic"):
         interactive_mode = False
-        log_verbose("Entering Automatic Mode")
     elif opt in ("-i", "--interactive"):
         interactive_mode = True
-        log_verbose("Entering Interactive Mode")
     elif opt in ("-p", "--path"):
         search_path = os.path.realpath(arg)
-        log_verbose("Will search for files of interest in " + search_path)
     elif opt in ("-s", "--secret"):
         secret_path = os.path.realpath(arg)
-        log_verbose("Will use Google Drive authentication details in " + secret_path)
 
-# Sanity Checks
+# Create Logger and Write Initial logs
 if log_path is not None and not os.access(os.path.dirname(log_path), os.W_OK):
     print("ERROR: Unable to write to log. Check permissions.")
     sys.exit(2)
+
+logger = Logger(verbose_mode, log_path)
+logger.log_verbose("Echo Session Begin")
+logger.log_verbose("Log File: " + str(log_path))
+logger.log_verbose("Interactive Mode: " + str(interactive_mode))
+logger.log_verbose("Search Directory: " + str(search_path))
+logger.log_verbose("Secret File: " + str(secret_path))
+
+# Sanity Checks
 if search_path is None:
-    log("ERROR: Must specify search directory path.")
+    logger.log("ERROR: Must specify search directory path.")
     print_help()
     sys.exit(2)
 if not os.path.isdir(search_path) or not os.access(search_path, os.R_OK):
-    log("ERROR: " + search_path + " does not exist, is not a directory, or is not readable.")
+    logger.log("ERROR: " + search_path + " does not exist, is not a directory, or is not readable.")
     print_help()
     sys.exit(2)
 if secret_path is None:
-    log_verbose("No search directory specified. Using " + search_path + "/drive.secret.")
+    logger.log_verbose("No secret file specified. Using " + search_path + "/drive.secret.")
     secret_path = search_path + "/drive.secret"
 if not os.path.isfile(secret_path) or not os.access(secret_path, os.R_OK):
-    log("ERROR: " + secret_path + " does not exist, is not a file, or is not readable.")
+    logger.log("ERROR: " + secret_path + " does not exist, is not a file, or is not readable.")
     print_help()
     sys.exit(2)
 
-log_verbose("Welcome to BURPG Echo.")
+logger.log_verbose("Initialization complete. Welcome to BURPG Echo.")
 
 
 def find_videos(path):
@@ -138,7 +121,9 @@ def find_videos(path):
         for file in files:
             if file.lower().endswith(VIDEO_FILE_TYPES):
                 output_list.append(os.path.join(subdir, file))
+                logger.log_verbose("Found video file: " + os.path.join(subdir, file))
     return output_list
+
 
 def find_data(path):
     """
@@ -154,11 +139,36 @@ def find_data(path):
         for file in files:
             if file.lower().endswith(DATA_FILE_TYPES):
                 output_list.append(os.path.join(subdir, file))
+                logger.log_verbose("Found data file: " + os.path.join(subdir, file))
     return output_list
 
+# Locate Files of Interest
 data_list = find_data(search_path)
-print(data_list)
-my_rs = rs()
-print(my_rs.upload_file(data_list[0]))
-# csv_files = locate_csv_files()
-# video_files = locate_video_files()
+video_list = find_videos(search_path)
+
+# Create Google Drive connection (will prompt for user login if necessary)
+drive = GoogleDrive(logger)
+
+# Upload Data Files
+if len(data_list) is not 0:
+    logger.log("Beginng Data File Upload...")
+    folder_id = drive.create_folder("EchoData-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
+    for data_file in data_list:
+        drive.upload_file(data_file, folder_id)
+    logger.log("All data files uploaded.")
+else:
+    logger.log("No data files found. Skipping upload.")
+
+# Upload Video Files
+if len(video_list) is not 0:
+    logger.log("Beginng Video File Upload...")
+    folder_id = drive.create_folder("EchoVideo-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
+    for video_file in video_list:
+        drive.upload_file(video_file, folder_id)
+    logger.log("All video files uploaded.")
+else:
+    logger.log("No video files found. Skipping upload.")
+
+# All Done!
+logger.log("All operations completed after " +
+           str(int(round(time.time() * 1000)) - APP_START_TIME) + "ms. Goodbye.")
