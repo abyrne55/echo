@@ -60,3 +60,9 @@ target/
 
 #Ipython Notebook
 .ipynb_checkpoints
+
+# BURPG Echo Files
+echo.log
+drive.secret
+drive.credentials
+client_secret.json
