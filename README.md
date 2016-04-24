@@ -4,17 +4,17 @@ Python tool for automatically uploading rocketry videos and data to Google Drive
 
 ## Installation
 1. Satisfy dependencies
-```bash
-# On Debian/Ubuntu
-sudo apt-get install build-essential gfortran libatlas-base-dev python-pip python-dev
-
-# On Mac OS X or Windows, I'd recommend downloading the Anaconda Python distribution
-# from https://www.continuum.io/downloads
-
-# Run the following commands regardless of your OS. Note, you may need root/admin privileges
-pip install --upgrade pip
-pip install --upgrade numpy scipy matplotlib google-api-python-client
-```
+  ```bash
+  # On Debian/Ubuntu
+  sudo apt-get install build-essential gfortran libatlas-base-dev python-pip python-dev
+  
+  # On Mac OS X or Windows, I'd recommend downloading the Anaconda Python distribution
+  # from https://www.continuum.io/downloads
+  
+  # Run the following commands regardless of your OS. Note, you may need root/admin privileges
+  pip install --upgrade pip
+  pip install --upgrade numpy scipy matplotlib google-api-python-client
+  ```
 2. Download/clone the latest source and extract it to your working directory
 3. Register for a Google Developers Key (needed to access the Drive API). This step does NOT grant anyone access to your personal Google Drive. It simply gets you a Google API *client ID* and *secret*, which you'll need to access the Drive API.
   1. Use [this wizard](https://console.developers.google.com/start/api?id=drive) to create or select a project in the Google Developers Console and automatically turn on the API. Click **Continue**, then **Go to credentials**.
@@ -28,10 +28,7 @@ pip install --upgrade numpy scipy matplotlib google-api-python-client
 
 ## Basic Usage
 1. Ensure the directory you'd like Echo to scan is fully readable by your user, and ensure Echo can write to its working directory
-2. Run the following command, replacing *[SEARCH_PATH]* with the path to your search directory
-```bash
-python echo.py -p [SEARCH_PATH]
-```
+2. Run `python echo.py -p [SEARCH_PATH]`, replacing *[SEARCH_PATH]* with the path to your search directory
 3. If you're running Echo for the first time, this will open a web browser allowing you to login to Drive and grant Echo permission to access it. Follow the prompts and return to your terminal once the authentication flow is complete.
 4. After successful authentication, echo will generate relevant graphs and upload all relevant files
 
