@@ -9,7 +9,7 @@ from scipy import signal
 class DataAnalysis:
     
     def __init__(self,interactive):
-        interactive = false
+        interactive = False
     
     def simple_plot(title,x,y,xlabel,ylabel):
         """
@@ -28,6 +28,14 @@ class DataAnalysis:
         plt.grid(True)
     
     
-    def filter_data(x,N,Wn):
-        b,a, = signal.butter
+    def filter_data(y,N,Wn):
+        """
+        takes raw telemetry data and applies a butterworth filter
+        :param y: raw telemetry data
+        :param N: order of butterworth filter
+        :param Wn: cutoff frequency
+        """
+        b,a, = signal.butter(N,Wn, output = 'ba')
+        yf = signal.filtfilt(b,a, y)
+        return yf
         
