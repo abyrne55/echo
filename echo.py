@@ -33,26 +33,34 @@ verbose_mode = False
 log_path = None
 # Search Path: the folder to search for relevant files in (videos, CSV's, etc.)
 search_path = None
-# Secret Path: the path to the file that contains our Google Drive login info.
-# If not set, defaults to looking for a file named 'drive.secret' at the top of
-# the search_path
+# Client Secret Path: the path to the file that contains our Google Drive API
+# info. If not set, defaults to looking for a file named 'client_secrets.json'
+# within the current working directory
 secret_path = None
-
+# Credentials Path: the path to the file that contains Google user credentials
+# (obtained by completing the user authentication flow on first run). If not
+# set, we first check the current working directory for 'drive.credentials'. If
+# 'drive.credentials' does not exist or is expired, the user auth flow will be
+# initiated
+credentials_path = None
+# noauth_local_webserver. Command line argument passthru to the OAuth2 flow.
+noauth_local_webserver = False
 
 def print_help():
     """
     Prints the help text to terminal (invoked by adding the -h flag)
     """
     print("BURPG Echo\n"
-          "Usage: " + os.path.basename(__file__) + " -p search_path [-ahilv] [-s secret_path]\n"
+          "Usage: " + os.path.basename(__file__) + " -p search_path [-ahilv] [-s secret_path] [-c credentials_path]\n"
           "\n"
           "See README.md for command line help")
 
 
 # Handle Command Line Options
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hlaivp:s:", [
-        "help", "log", "automatic", "interactive", "verbose", "path=", "secret="])
+    opts, args = getopt.getopt(sys.argv[1:], "hlaivp:s:c:n", [
+        "help", "log", "automatic", "interactive", "verbose", "path=",
+        "secret=", "credentials=", "noauth_local_webserver"])
 except getopt.GetoptError:
     print("Invalid Argument")
     print_help()
@@ -74,6 +82,10 @@ for opt, arg in opts:
         search_path = os.path.realpath(arg)
     elif opt in ("-s", "--secret"):
         secret_path = os.path.realpath(arg)
+    elif opt in ("-c", "--credentials"):
+        credentials_path = os.path.realpath(arg)
+    elif opt in ("-n", "--noauth_local_webserver"):
+        noauth_local_webserver = True
 
 # Create Logger and Write Initial logs
 if log_path is not None and not os.access(os.path.dirname(log_path), os.W_OK):
@@ -85,7 +97,8 @@ logger.log_verbose("Echo Session Begin")
 logger.log_verbose("Log File: " + str(log_path))
 logger.log_verbose("Interactive Mode: " + str(interactive_mode))
 logger.log_verbose("Search Directory: " + str(search_path))
-logger.log_verbose("Secret File: " + str(secret_path))
+logger.log_verbose("API Client Secret File: " + str(secret_path))
+logger.log_verbose("Credentials File: " + str(credentials_path))
 
 # Sanity Checks
 if search_path is None:
@@ -97,12 +110,17 @@ if not os.path.isdir(search_path) or not os.access(search_path, os.R_OK):
     print_help()
     sys.exit(2)
 if secret_path is None:
-    logger.log_verbose("No secret file specified. Using " + search_path + "/drive.secret.")
-    secret_path = search_path + "/drive.secret"
+    logger.log_verbose("No API client secret file specified. Using " +
+                       os.getcwd() + "/client_secrets.json.")
+    secret_path = os.getcwd() + "/client_secrets.json"
 if not os.path.isfile(secret_path) or not os.access(secret_path, os.R_OK):
     logger.log("ERROR: " + secret_path + " does not exist, is not a file, or is not readable.")
     print_help()
     sys.exit(2)
+if credentials_path is None:
+    logger.log_verbose("No credentials file specified. Using " +
+                       os.getcwd() + "/drive.credentials.")
+    credentials_path = os.getcwd() + "/drive.credentials"
 
 logger.log_verbose("Initialization complete. Welcome to BURPG Echo.")
 
@@ -147,7 +165,9 @@ data_list = find_data(search_path)
 video_list = find_videos(search_path)
 
 # Create Google Drive connection (will prompt for user login if necessary)
-drive = GoogleDrive(logger)
+drive = GoogleDrive(logger, secret_path=secret_path,
+                    credentials_path=credentials_path,
+                    noauth_local_webserver=noauth_local_webserver)
 
 # Upload Data Files
 if len(data_list) is not 0:

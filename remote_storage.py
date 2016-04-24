@@ -27,14 +27,15 @@ class GoogleDrive:
     """
 
     SCOPES = 'https://www.googleapis.com/auth/drive.file'
-    CLIENT_SECRET_FILE = 'drive.secret'
+    CLIENT_SECRET_FILE = 'client_secrets.json'
     CLIENT_CREDENTIAL_FILE = 'drive.credentials'
     APPLICATION_NAME = 'BURPG Echo'
     CREDENTIALS = None
     DRIVE_SERVICE = None
     logger = None
 
-    def __init__(self, logger, secret_path='drive.secret', credential_path='drive.credentials'):
+    def __init__(self, logger, secret_path='client_secrets.json',
+                 credentials_path='drive.credentials', noauth_local_webserver=False):
         """
         Gets valid GDrive user credentials from storage.
 
@@ -42,7 +43,7 @@ class GoogleDrive:
         the OAuth2 flow is completed to obtain the new credentials.
         """
         self.CLIENT_SECRET_FILE = secret_path
-        self.CLIENT_CREDENTIAL_FILE = credential_path
+        self.CLIENT_CREDENTIAL_FILE = credentials_path
         self.logger = logger
 
         credstore = oauth2client.file.Storage(self.CLIENT_CREDENTIAL_FILE)
@@ -56,8 +57,12 @@ class GoogleDrive:
             parser = argparse.ArgumentParser(description=__doc__,
                                              formatter_class=argparse.RawDescriptionHelpFormatter,
                                              parents=[tools.argparser])
+            dummy_args = []
+            if noauth_local_webserver:
+                logger.log_verbose("Performing offline auth-flow")
+                dummy_args = ["--noauth_local_webserver"]
 
-            credentials = tools.run_flow(flow, credstore, flags=parser.parse_args([]))
+            credentials = tools.run_flow(flow, credstore, flags=parser.parse_args(dummy_args))
             self.logger.log_verbose('Storing credentials to ' + self.CLIENT_CREDENTIAL_FILE)
         self.CREDENTIALS = credentials
         self.DRIVE_SERVICE = discovery.build(

@@ -65,4 +65,4 @@ target/
 echo.log
 drive.secret
 drive.credentials
-client_secret.json
+client_secrets.json
