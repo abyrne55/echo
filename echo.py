@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# pylint: disable-msg=C0103
+# pylint: disable-msg=C0103,C0413
 """
 Boston University Rocket Propulsion Group: Echo
 Post-Rocket Engine Test Data Upload & Analysis Tool
@@ -11,10 +11,11 @@ See README.md for all other help.
 """
 
 ### IMPORTS ###
+import time
+APP_START_TIME = int(round(time.time() * 1000))
 import getopt
 import sys
 import os
-import time
 from datetime import datetime
 from remote_storage import GoogleDrive
 from echo_logger import Logger
@@ -22,7 +23,6 @@ from echo_logger import Logger
 ### CONSTANTS ###
 VIDEO_FILE_TYPES = (".mp4", ".mov", ".avi")
 DATA_FILE_TYPES = (".csv")
-APP_START_TIME = int(round(time.time() * 1000))
 
 ### GLOBALS ###
 # Interactive Mode: shows graph in pop-up windows without saving them to file
@@ -46,12 +46,14 @@ credentials_path = None
 # noauth_local_webserver. Command line argument passthru to the OAuth2 flow.
 noauth_local_webserver = False
 
+
 def print_help():
     """
     Prints the help text to terminal (invoked by adding the -h flag)
     """
     print("BURPG Echo\n"
-          "Usage: " + os.path.basename(__file__) + " -p search_path [-ahilv] [-s secret_path] [-c credentials_path]\n"
+          "Usage: " + os.path.basename(__file__) +
+          " -p search_path [-ahilnv] [-s secret_path] [-c credentials_path]\n"
           "\n"
           "See README.md for command line help")
 
@@ -171,7 +173,7 @@ drive = GoogleDrive(logger, secret_path=secret_path,
 
 # Upload Data Files
 if len(data_list) is not 0:
-    logger.log("Beginng Data File Upload...")
+    logger.log("Beginning Data File Upload...")
     folder_id = drive.create_folder("EchoData-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
     for data_file in data_list:
         drive.upload_file(data_file, folder_id)
@@ -181,7 +183,7 @@ else:
 
 # Upload Video Files
 if len(video_list) is not 0:
-    logger.log("Beginng Video File Upload...")
+    logger.log("Beginning Video File Upload...")
     folder_id = drive.create_folder("EchoVideo-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
     for video_file in video_list:
         drive.upload_file(video_file, folder_id)
