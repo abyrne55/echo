@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# pylint: disable-msg=C0103,C0413
+# pylint: disable-msg=C0103,C0413,E0611
 """
 Boston University Rocket Propulsion Group: Echo
 Post-Rocket Engine Test Data Upload & Analysis Tool
@@ -17,6 +17,7 @@ import getopt
 import sys
 import os
 from datetime import datetime
+from numpy import genfromtxt
 from remote_storage import GoogleDrive
 from echo_logger import Logger
 
@@ -162,6 +163,7 @@ def find_data(path):
                 logger.log_verbose("Found data file: " + os.path.join(subdir, file))
     return output_list
 
+
 # Locate Files of Interest
 data_list = find_data(search_path)
 video_list = find_videos(search_path)
@@ -190,6 +192,20 @@ if len(video_list) is not 0:
     logger.log("All video files uploaded.")
 else:
     logger.log("No video files found. Skipping upload.")
+
+# Generate Data Plots
+if len(data_list) is not 0:
+    logger.log("Beginning Plot Generation...")
+    import plotting
+    folder_name = "EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M")
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+    analysis = plotting.DataAnalysis(logger, interactive_mode, folder_name)
+    for data_file in data_list:
+        raw_data_array = genfromtxt(data_file, delimiter=",")
+        dataset = plotting.DataSet(os.path.basename(
+            data_file)[:-4], raw_data_array[:, 0], raw_data_array[:, 1])
+        analysis.plot_dataset(dataset, xlabel="Time (s)", ylabel="Units")
 
 # All Done!
 logger.log("All operations completed after " +

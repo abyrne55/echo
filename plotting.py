@@ -8,6 +8,7 @@ See README.md for all other help.
 
 import matplotlib.pyplot as plt
 from scipy import signal
+import numpy as np
 
 
 class DataAnalysis:
@@ -16,12 +17,16 @@ class DataAnalysis:
     data.
     """
     interactive = False
+    save_location = "."
+    logger = None
     LINE_COLORS = ["#de3c80", "#d9013a", "#d47e20", "#17c009", "#196512", "#2a9e60", "#116186"]
 
-    def __init__(self, interactive):
+    def __init__(self, logger, interactive, save_location="."):
         self.interactive = interactive
+        self.save_location = save_location
+        self.logger = logger
 
-    def plot_dataset(self, data, title, xlabel, ylabel):
+    def plot_dataset(self, data, xlabel, ylabel, title=None):
         """
          Plots telemetry values given in a list.
 
@@ -38,7 +43,7 @@ class DataAnalysis:
         legendnames = []
         dslist = []
 
-        if len(data) > 1:
+        if isinstance(data, list):
             dslist = data
         else:
             dslist = [data]
@@ -47,26 +52,45 @@ class DataAnalysis:
             plt.plot(dataset.xlist, dataset.ylist,
                      color=DataAnalysis.LINE_COLORS[dslist.index(dataset)])
             legendnames.append(dataset.dataname)
-            plt.title(title)
+
+            if title is None:
+                plt.title(dataset.dataname)
+            else:
+                plt.title(title)
+
             plt.xlabel(xlabel)
             plt.ylabel(ylabel)
 
             if self.interactive:
                 plt.show()
             else:
-                plt.savefig(dataset.title + ".pdf")
 
-    def filter_data(self, raw, order, cutoff):
+                plt.savefig(self.save_location + "/" +
+                            dataset.dataname + ".pdf", bbox_inches='tight')
+
+    def butter_filter_data(self, raw, order, cutoff):
         """
         Takes raw telemetry data and applies a Butterworth filter
 
-        :param raw: raw telemetry data
+        :param raw: an array of raw telemetry data
         :param order: order of butterworth filter
         :param cutoff: cutoff frequency
         :returns: filtered data
         """
         numerator, denominator = signal.butter(order, cutoff, output='ba')
         return signal.filtfilt(numerator, denominator, raw)
+
+    def moving_average_filter_data(self, raw, interval):
+        """
+        Takes raw telemetry data and applies a moving average filter
+        Citation: Based on this StackOverflow answer: http://stackoverflow.com/a/14314054
+
+        :param raw: an array of raw telemetry data
+        :param period: the smoothing interval
+        """
+        ret = np.cumsum(raw, dtype=float)
+        ret[interval:] = ret[interval:] - ret[:-interval]
+        return ret[interval - 1:] / interval
 
 
 class DataSet:
