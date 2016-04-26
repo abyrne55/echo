@@ -39,6 +39,7 @@ class DataAnalysis:
          :param title: Title of the plot
          :param xlabel: label on x axis in form "Type (units)" ie. "Time (s)"
          :param ylabel: label on y axis in form "Type (units)" ie. "Thrust (lbs)"
+         :returns: path to plot image folder
         """
         legendnames = []
         dslist = []
@@ -63,10 +64,11 @@ class DataAnalysis:
 
             if self.interactive:
                 plt.show()
-            else:
 
-                plt.savefig(self.save_location + "/" +
-                            dataset.dataname + ".pdf", bbox_inches='tight')
+            plt.savefig(self.save_location + "/" +
+                        dataset.dataname + ".pdf", bbox_inches='tight')
+
+        return self.save_location
 
     def butter_filter_data(self, raw, order, cutoff):
         """

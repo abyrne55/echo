@@ -24,6 +24,7 @@ from echo_logger import Logger
 ### CONSTANTS ###
 VIDEO_FILE_TYPES = (".mp4", ".mov", ".avi")
 DATA_FILE_TYPES = (".csv")
+PLOT_FILE_TYPES = (".pdf")
 
 ### GLOBALS ###
 # Interactive Mode: shows graph in pop-up windows without saving them to file
@@ -163,6 +164,23 @@ def find_data(path):
                 logger.log_verbose("Found data file: " + os.path.join(subdir, file))
     return output_list
 
+def find_plots(path):
+    """
+    Search the given path recursively and return a list of plot PDF files
+
+    :param path: the path to search
+    :returns: a list of plot file path strings
+    """
+    # "Walk" through the files in the search dir and check for plot file extensions
+    output_list = list()
+    for subdir, dirs, files in os.walk(path):
+        del dirs
+        for file in files:
+            if file.lower().endswith(PLOT_FILE_TYPES):
+                output_list.append(os.path.join(subdir, file))
+                logger.log_verbose("Found plot file: " + os.path.join(subdir, file))
+    return output_list
+
 
 # Locate Files of Interest
 data_list = find_data(search_path)
@@ -194,10 +212,10 @@ else:
     logger.log("No video files found. Skipping upload.")
 
 # Generate Data Plots
+folder_name = "EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M")
 if len(data_list) is not 0:
     logger.log("Beginning Plot Generation...")
     import plotting
-    folder_name = "EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M")
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
     analysis = plotting.DataAnalysis(logger, interactive_mode, folder_name)
@@ -206,6 +224,18 @@ if len(data_list) is not 0:
         dataset = plotting.DataSet(os.path.basename(
             data_file)[:-4], raw_data_array[:, 0], raw_data_array[:, 1])
         analysis.plot_dataset(dataset, xlabel="Time (s)", ylabel="Units")
+
+# Upload Plots
+plot_list = find_plots(folder_name)
+if len(plot_list) is not 0:
+    logger.log("Beginning Plot File Upload...")
+    folder_id = drive.create_folder("EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
+    for plot_file in plot_list:
+        drive.upload_file(plot_file, folder_id)
+    logger.log("All plot files uploaded.")
+else:
+    logger.log("No plot files found. Skipping upload.")
+
 
 # All Done!
 logger.log("All operations completed after " +
