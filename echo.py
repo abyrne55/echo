@@ -258,6 +258,7 @@ if len(data_list) is not 0:
     multilist = []
     raw_data_array = csv_to_array(data_list[0])
     filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
+    #filtered_data = raw_data_array
 
     multilist.append(plotting.DataSet(os.path.basename(
         data_list[0])[:-4], raw_data_array[:, 0], filtered_data))
@@ -265,11 +266,11 @@ if len(data_list) is not 0:
 
     raw_data_array = csv_to_array(data_list[1])
     filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
+    #filtered_data = raw_data_array
     multilist.append(plotting.DataSet(os.path.basename(
         data_list[1])[:-4], raw_data_array[:, 0], filtered_data))
     multilist[1].set_t0(t_zero)
     plot_list.append(analysis.plot_dataset(multilist, xlabel="Time (s)", ylabel="Units"))
-
 
 
 # Upload Plots
