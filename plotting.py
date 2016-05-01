@@ -46,11 +46,13 @@ class DataAnalysis:
         dslist = []
         dsnamelist = []
 
+        # Check if input data is a list of DataSets or just one DataSet
         if isinstance(data, list):
             dslist = data
         else:
             dslist = [data]
 
+        # Loop through each DataSet and plot it on a graph
         for dataset in dslist:
             plt.plot(dataset.xlist, dataset.ylist,
                      color=DataAnalysis.LINE_COLORS[dslist.index(dataset)])
@@ -58,6 +60,7 @@ class DataAnalysis:
             dsnamelist.append(dataset.dataname)
 
         save_path = ""
+        # Set the plot title based on the DataSet's dataname
         if title is None:
             if len(dslist) > 1:
                 plt.title(" vs. ".join(dsnamelist))
@@ -69,22 +72,22 @@ class DataAnalysis:
             plt.title(title)
             save_path = self.save_folder + "/" + title + ".pdf"
 
+        # Plot Formatting
         if len(dslist) > 1:
             plt.legend(legendnames, loc="upper right")
-
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         axis = plt.gca()
         axis.grid(which='minor', alpha=0.2)
         axis.grid(which='major', alpha=0.5)
-        #plt.yticks(np.arange(min(dslist[0].ylist), max(x)+1, 1.0))
-
         if xlimits is not None:
             axis.set_xlim(xlimits[0], xlimits[1])
 
+        # Check for interactive mode
         if self.interactive:
             plt.show()
 
+        # Save plot
         plt.savefig(save_path, bbox_inches='tight')
         self.logger.log_verbose("Generated Graph " + save_path)
         plt.close()

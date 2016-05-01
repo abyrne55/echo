@@ -77,7 +77,8 @@ except getopt.GetoptError:
     print("Invalid Argument")
     print_help()
     sys.exit(2)
-
+# Loop through the argument list given to us by Getopt and process appropriately
+# See Globals section above and the README for more information about options
 for opt, arg in opts:
     if opt in ("-h", "--help"):
         print_help()
@@ -111,6 +112,7 @@ if log_path is not None and not os.access(os.path.dirname(log_path), os.W_OK):
     print("ERROR: Unable to write to log. Check permissions.")
     sys.exit(2)
 
+# Log some key information for debugging purposes
 logger = Logger(verbose_mode, log_path)
 logger.log_verbose("Echo Session Begin")
 logger.log_verbose("Log File: " + str(log_path))
@@ -123,23 +125,30 @@ logger.log_verbose("T0 Time: " + str(t_zero))
 logger.log_verbose("Trim Interval: " + str(trim_interval))
 
 # Sanity Checks
+# Check if a search path was specified
 if search_path is None:
     logger.log("ERROR: Must specify search directory path.")
     print_help()
     sys.exit(2)
+# Check if we can access the search path with read permissions
 if not os.path.isdir(search_path) or not os.access(search_path, os.R_OK):
     logger.log("ERROR: " + search_path + " does not exist, is not a directory, or is not readable.")
     print_help()
     sys.exit(2)
+# Only perform the following checks if we plan to upload to Google Drive
 if not offline:
+    # Check the "client secret" path
     if secret_path is None:
         logger.log_verbose("No API client secret file specified. Using " +
                            os.getcwd() + "/client_secrets.json.")
         secret_path = os.getcwd() + "/client_secrets.json"
+    # Check that we can access the client secret
     if not os.path.isfile(secret_path) or not os.access(secret_path, os.R_OK):
         logger.log("ERROR: " + secret_path + " does not exist, is not a file, or is not readable.")
         print_help()
         sys.exit(2)
+    # Try to load a credentials file (not really required, since the user can
+    # just complete the Google authentication flow to get a new one
     if credentials_path is None:
         logger.log_verbose("No credentials file specified. Using " +
                            os.getcwd() + "/drive.credentials.")
@@ -153,8 +162,10 @@ def csv_to_array(path):
     Read a CSV file into a NumPy array, while ensuring that the resulting array is 2D
 
     :param path: path to CSV file
+    :returns: the resulting NumPy array
     """
     arr = genfromtxt(path, delimiter=",", dtype=dtype(float))
+    # Ensure the array is 2D (since genfromtxt() reads a 1 line CSV as a 1D array)
     if len(arr.shape) is 1:
         arr = array([array([0, 0]), arr])
     return arr
@@ -180,12 +191,13 @@ def find_videos(path):
 
 def find_data(path):
     """
-    Search the given path recursively and return a list of telemetry data files
+    Search the given path recursively and return a list of telemetry data files.
+    Also looks for a "t0_time.csv" file to set the t_zero gloabl variable.
 
     :param path: the path to search
     :returns: a list of data file path strings
     """
-    # "Walk" through the files in the search dir and check for video file extensions
+    # "Walk" through the files in the search dir and check for data file extensions
     output_list = list()
     for subdir, dirs, files in os.walk(path):
         del dirs
@@ -193,6 +205,7 @@ def find_data(path):
             if file.lower().endswith(DATA_FILE_TYPES) and not file.lower().endswith("t0_time.csv"):
                 output_list.append(os.path.join(subdir, file))
                 logger.log_verbose("Found data file: " + os.path.join(subdir, file))
+            # Look for the T0 file
             if not override_t_zero and file.lower().endswith("t0_time.csv"):
                 t0_arr = csv_to_array(os.path.join(subdir, file))
                 for row in t0_arr:
@@ -212,7 +225,7 @@ if not offline:
                         credentials_path=credentials_path,
                         noauth_local_webserver=noauth_local_webserver)
 
-# Upload Data Files
+# Upload Data Files (if applicable)
 if not offline and len(data_list) is not 0:
     logger.log("Beginning Data File Upload...")
     folder_id = drive.create_folder("EchoData-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
@@ -222,7 +235,7 @@ if not offline and len(data_list) is not 0:
 else:
     logger.log("Offline, or no data files found. Skipping upload.")
 
-# Upload Video Files
+# Upload Video Files (if applicable)
 if not offline and len(video_list) is not 0:
     logger.log("Beginning Video File Upload...")
     folder_id = drive.create_folder("EchoVideo-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
@@ -238,9 +251,12 @@ plot_list = []
 if len(data_list) is not 0:
     logger.log("Beginning Plot Generation...")
     import plotting
+    # Ensure our plots folder exists
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
+    # Create a DataAnalysis object
     analysis = plotting.DataAnalysis(logger, interactive_mode, folder_name)
+    # Loop through the data files and plot them, recording plot paths as we go
     for data_file in data_list:
         raw_data_array = csv_to_array(data_file)
         dataset = plotting.DataSet(os.path.basename(
@@ -254,26 +270,30 @@ if len(data_list) is not 0:
                                                    ylabel="Units",
                                                    xlimits=(-trim_interval, trim_interval)))
 
-    # Multiplot Test code
+    ## Filtered multiplot test code ##
     multilist = []
-    raw_data_array = csv_to_array(data_list[0])
-    filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
-    #filtered_data = raw_data_array
 
+    # Run the first dataset through a 5th order Butterworth filter
+    filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
+    raw_data_array = csv_to_array(data_list[0])
+
+    # Create a new DataSet object based on the filtered data
     multilist.append(plotting.DataSet(os.path.basename(
         data_list[0])[:-4], raw_data_array[:, 0], filtered_data))
     multilist[0].set_t0(t_zero)
 
+    # Run the second dataset through a 5th order Butterworth filter
     raw_data_array = csv_to_array(data_list[1])
     filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
-    #filtered_data = raw_data_array
+
+    # Create a new DataSet object based on the filtered data
     multilist.append(plotting.DataSet(os.path.basename(
         data_list[1])[:-4], raw_data_array[:, 0], filtered_data))
     multilist[1].set_t0(t_zero)
     plot_list.append(analysis.plot_dataset(multilist, xlabel="Time (s)", ylabel="Units"))
 
 
-# Upload Plots
+# Upload Plots (if applicable)
 if not offline and len(plot_list) is not 0:
     logger.log("Beginning Plot File Upload...")
     folder_id = drive.create_folder("EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
