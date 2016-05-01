@@ -78,8 +78,7 @@ class GoogleDrive:
         placed
         :returns: the API's response object
         """
-        self.logger.log_verbose("Attempting multipart upload of " + file_path +
-                                " into folder " + str(parent_folder_id))
+        self.logger.log_verbose("Attempting upload:" + file_path +" to " + str(parent_folder_id))
         media = http.MediaFileUpload(file_path, resumable=True)
         file_metadata = {'name': os.path.basename(file_path)}
         if parent_folder_id is not None:
@@ -91,7 +90,7 @@ class GoogleDrive:
             status, response = request.next_chunk()
             if status:
                 self.logger.log_verbose("Uploaded {:d}%.".format(int(status.progress() * 100)))
-        self.logger.log_verbose("Upload of " + file_path + " complete!")
+        self.logger.log_verbose("Upload complete: " + file_path)
         return response
 
     def create_folder(self, folder_name):

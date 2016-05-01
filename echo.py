@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# pylint: disable-msg=C0103,C0413,E0611
+# pylint: disable-msg=C0103,C0413,E0611,W0603
 """
 Boston University Rocket Propulsion Group: Echo
 Post-Rocket Engine Test Data Upload & Analysis Tool
@@ -17,7 +17,8 @@ import getopt
 import sys
 import os
 from datetime import datetime
-from numpy import genfromtxt
+#import numpy as np
+from numpy import genfromtxt, dtype, array
 from remote_storage import GoogleDrive
 from echo_logger import Logger
 
@@ -47,6 +48,13 @@ secret_path = None
 credentials_path = None
 # noauth_local_webserver. Command line argument passthru to the OAuth2 flow.
 noauth_local_webserver = False
+# Offline mode. Do everything except for drive upload
+offline = False
+# T0 time. Correct graphs so that they center correctly on a T0
+t_zero = 0.0
+override_t_zero = False
+# Trim interval. Discard all data this amount of time before and after T0
+trim_interval = None
 
 
 def print_help():
@@ -55,16 +63,16 @@ def print_help():
     """
     print("BURPG Echo\n"
           "Usage: " + os.path.basename(__file__) +
-          " -p search_path [-ahilnv] [-s secret_path] [-c credentials_path]\n"
+          " -p search_path [-ahilnovz] [-s secret_path] [-c credentials_path]\n"
           "\n"
           "See README.md for command line help")
 
 
 # Handle Command Line Options
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hlaivp:s:c:n", [
+    opts, args = getopt.getopt(sys.argv[1:], "hlaivp:s:c:noz:t:", [
         "help", "log", "automatic", "interactive", "verbose", "path=",
-        "secret=", "credentials=", "noauth_local_webserver"])
+        "secret=", "credentials=", "noauth_local_webserver", "offline", "t_zero=", "trim="])
 except getopt.GetoptError:
     print("Invalid Argument")
     print_help()
@@ -90,6 +98,13 @@ for opt, arg in opts:
         credentials_path = os.path.realpath(arg)
     elif opt in ("-n", "--noauth_local_webserver"):
         noauth_local_webserver = True
+    elif opt in ("-o", "--offline"):
+        offline = True
+    elif opt in ("-z", "--t_zero"):
+        override_t_zero = True
+        t_zero = float(arg)
+    elif opt in ("-t", "--trim"):
+        trim_interval = float(arg)
 
 # Create Logger and Write Initial logs
 if log_path is not None and not os.access(os.path.dirname(log_path), os.W_OK):
@@ -103,6 +118,9 @@ logger.log_verbose("Interactive Mode: " + str(interactive_mode))
 logger.log_verbose("Search Directory: " + str(search_path))
 logger.log_verbose("API Client Secret File: " + str(secret_path))
 logger.log_verbose("Credentials File: " + str(credentials_path))
+logger.log_verbose("Offline: " + str(offline))
+logger.log_verbose("T0 Time: " + str(t_zero))
+logger.log_verbose("Trim Interval: " + str(trim_interval))
 
 # Sanity Checks
 if search_path is None:
@@ -113,20 +131,33 @@ if not os.path.isdir(search_path) or not os.access(search_path, os.R_OK):
     logger.log("ERROR: " + search_path + " does not exist, is not a directory, or is not readable.")
     print_help()
     sys.exit(2)
-if secret_path is None:
-    logger.log_verbose("No API client secret file specified. Using " +
-                       os.getcwd() + "/client_secrets.json.")
-    secret_path = os.getcwd() + "/client_secrets.json"
-if not os.path.isfile(secret_path) or not os.access(secret_path, os.R_OK):
-    logger.log("ERROR: " + secret_path + " does not exist, is not a file, or is not readable.")
-    print_help()
-    sys.exit(2)
-if credentials_path is None:
-    logger.log_verbose("No credentials file specified. Using " +
-                       os.getcwd() + "/drive.credentials.")
-    credentials_path = os.getcwd() + "/drive.credentials"
+if not offline:
+    if secret_path is None:
+        logger.log_verbose("No API client secret file specified. Using " +
+                           os.getcwd() + "/client_secrets.json.")
+        secret_path = os.getcwd() + "/client_secrets.json"
+    if not os.path.isfile(secret_path) or not os.access(secret_path, os.R_OK):
+        logger.log("ERROR: " + secret_path + " does not exist, is not a file, or is not readable.")
+        print_help()
+        sys.exit(2)
+    if credentials_path is None:
+        logger.log_verbose("No credentials file specified. Using " +
+                           os.getcwd() + "/drive.credentials.")
+        credentials_path = os.getcwd() + "/drive.credentials"
 
 logger.log_verbose("Initialization complete. Welcome to BURPG Echo.")
+
+
+def csv_to_array(path):
+    """
+    Read a CSV file into a NumPy array, while ensuring that the resulting array is 2D
+
+    :param path: path to CSV file
+    """
+    arr = genfromtxt(path, delimiter=",", dtype=dtype(float))
+    if len(arr.shape) is 1:
+        arr = array([array([0, 0]), arr])
+    return arr
 
 
 def find_videos(path):
@@ -159,60 +190,51 @@ def find_data(path):
     for subdir, dirs, files in os.walk(path):
         del dirs
         for file in files:
-            if file.lower().endswith(DATA_FILE_TYPES):
+            if file.lower().endswith(DATA_FILE_TYPES) and not file.lower().endswith("t0_time.csv"):
                 output_list.append(os.path.join(subdir, file))
                 logger.log_verbose("Found data file: " + os.path.join(subdir, file))
+            if not override_t_zero and file.lower().endswith("t0_time.csv"):
+                t0_arr = csv_to_array(os.path.join(subdir, file))
+                for row in t0_arr:
+                    if row[1] > 0:
+                        global t_zero
+                        t_zero = float(row[0])
+                logger.log_verbose("Found new T0 time from file: " + str(t_zero))
     return output_list
-
-def find_plots(path):
-    """
-    Search the given path recursively and return a list of plot PDF files
-
-    :param path: the path to search
-    :returns: a list of plot file path strings
-    """
-    # "Walk" through the files in the search dir and check for plot file extensions
-    output_list = list()
-    for subdir, dirs, files in os.walk(path):
-        del dirs
-        for file in files:
-            if file.lower().endswith(PLOT_FILE_TYPES):
-                output_list.append(os.path.join(subdir, file))
-                logger.log_verbose("Found plot file: " + os.path.join(subdir, file))
-    return output_list
-
 
 # Locate Files of Interest
 data_list = find_data(search_path)
 video_list = find_videos(search_path)
 
 # Create Google Drive connection (will prompt for user login if necessary)
-drive = GoogleDrive(logger, secret_path=secret_path,
-                    credentials_path=credentials_path,
-                    noauth_local_webserver=noauth_local_webserver)
+if not offline:
+    drive = GoogleDrive(logger, secret_path=secret_path,
+                        credentials_path=credentials_path,
+                        noauth_local_webserver=noauth_local_webserver)
 
 # Upload Data Files
-if len(data_list) is not 0:
+if not offline and len(data_list) is not 0:
     logger.log("Beginning Data File Upload...")
     folder_id = drive.create_folder("EchoData-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
     for data_file in data_list:
         drive.upload_file(data_file, folder_id)
     logger.log("All data files uploaded.")
 else:
-    logger.log("No data files found. Skipping upload.")
+    logger.log("Offline, or no data files found. Skipping upload.")
 
 # Upload Video Files
-if len(video_list) is not 0:
+if not offline and len(video_list) is not 0:
     logger.log("Beginning Video File Upload...")
     folder_id = drive.create_folder("EchoVideo-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
     for video_file in video_list:
         drive.upload_file(video_file, folder_id)
     logger.log("All video files uploaded.")
 else:
-    logger.log("No video files found. Skipping upload.")
+    logger.log("Offline, or no video files found. Skipping upload.")
 
 # Generate Data Plots
 folder_name = "EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M")
+plot_list = []
 if len(data_list) is not 0:
     logger.log("Beginning Plot Generation...")
     import plotting
@@ -220,22 +242,45 @@ if len(data_list) is not 0:
         os.makedirs(folder_name)
     analysis = plotting.DataAnalysis(logger, interactive_mode, folder_name)
     for data_file in data_list:
-        raw_data_array = genfromtxt(data_file, delimiter=",")
+        raw_data_array = csv_to_array(data_file)
         dataset = plotting.DataSet(os.path.basename(
             data_file)[:-4], raw_data_array[:, 0], raw_data_array[:, 1])
-        analysis.plot_dataset(dataset, xlabel="Time (s)", ylabel="Units")
+        dataset.set_t0(t_zero)
+        if trim_interval is None:
+            plot_list.append(analysis.plot_dataset(dataset, xlabel="Time (s)",
+                                                   ylabel="Units"))
+        else:
+            plot_list.append(analysis.plot_dataset(dataset, xlabel="Time (s)",
+                                                   ylabel="Units",
+                                                   xlimits=(-trim_interval, trim_interval)))
+
+    # Multiplot Test code
+    multilist = []
+    raw_data_array = csv_to_array(data_list[0])
+    filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
+
+    multilist.append(plotting.DataSet(os.path.basename(
+        data_list[0])[:-4], raw_data_array[:, 0], filtered_data))
+    multilist[0].set_t0(t_zero)
+
+    raw_data_array = csv_to_array(data_list[1])
+    filtered_data = analysis.butter_filter_data(raw_data_array[:, 1], 5, 2/150/2)
+    multilist.append(plotting.DataSet(os.path.basename(
+        data_list[1])[:-4], raw_data_array[:, 0], filtered_data))
+    multilist[1].set_t0(t_zero)
+    plot_list.append(analysis.plot_dataset(multilist, xlabel="Time (s)", ylabel="Units"))
+
+
 
 # Upload Plots
-plot_list = find_plots(folder_name)
-if len(plot_list) is not 0:
+if not offline and len(plot_list) is not 0:
     logger.log("Beginning Plot File Upload...")
     folder_id = drive.create_folder("EchoPlots-" + datetime.utcnow().strftime("%Y.%m.%d.%H%M"))
     for plot_file in plot_list:
         drive.upload_file(plot_file, folder_id)
     logger.log("All plot files uploaded.")
 else:
-    logger.log("No plot files found. Skipping upload.")
-
+    logger.log("Offline, or no plot files found. Skipping upload.")
 
 # All Done!
 logger.log("All operations completed after " +

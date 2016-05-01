@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pylint: disable-msg=R0201, R0903
+# pylint: disable-msg=R0201,R0903,E1101,R0913
 """
 BURPG Echo
 See LICENSE for MIT/X11 license info.
@@ -17,16 +17,16 @@ class DataAnalysis:
     data.
     """
     interactive = False
-    save_location = "."
+    save_folder = "."
     logger = None
-    LINE_COLORS = ["#de3c80", "#d9013a", "#d47e20", "#17c009", "#196512", "#2a9e60", "#116186"]
+    LINE_COLORS = ["#de3c80", "#196512", "#d47e20", "#17c009", "#d9013a", "#2a9e60", "#116186"]
 
-    def __init__(self, logger, interactive, save_location="."):
+    def __init__(self, logger, interactive, save_folder="."):
         self.interactive = interactive
-        self.save_location = save_location
+        self.save_folder = save_folder
         self.logger = logger
 
-    def plot_dataset(self, data, xlabel, ylabel, title=None):
+    def plot_dataset(self, data, xlabel, ylabel, title=None, xlimits=None):
         """
          Plots telemetry values given in a list.
 
@@ -36,13 +36,15 @@ class DataAnalysis:
          it will save the figure as a pdf using the title found in the dataset
 
          :param data: Either a DataSet object or a list of DataSet Objects
-         :param title: Title of the plot
          :param xlabel: label on x axis in form "Type (units)" ie. "Time (s)"
          :param ylabel: label on y axis in form "Type (units)" ie. "Thrust (lbs)"
+         :param title: Title of the plot
+         :param xlimits: a tuple containing the x limits ie. (-10, 10)
          :returns: path to plot image folder
         """
         legendnames = []
         dslist = []
+        dsnamelist = []
 
         if isinstance(data, list):
             dslist = data
@@ -53,22 +55,40 @@ class DataAnalysis:
             plt.plot(dataset.xlist, dataset.ylist,
                      color=DataAnalysis.LINE_COLORS[dslist.index(dataset)])
             legendnames.append(dataset.dataname)
+            dsnamelist.append(dataset.dataname)
 
-            if title is None:
-                plt.title(dataset.dataname)
+        save_path = ""
+        if title is None:
+            if len(dslist) > 1:
+                plt.title(" vs. ".join(dsnamelist))
+                save_path = self.save_folder + "/" + "_vs_".join(dsnamelist) + ".pdf"
             else:
-                plt.title(title)
+                plt.title(dslist[0])
+                save_path = self.save_folder + "/" + dslist[0].dataname + ".pdf"
+        else:
+            plt.title(title)
+            save_path = self.save_folder + "/" + title + ".pdf"
 
-            plt.xlabel(xlabel)
-            plt.ylabel(ylabel)
+        if len(dslist) > 1:
+            plt.legend(legendnames, loc="upper right")
 
-            if self.interactive:
-                plt.show()
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        axis = plt.gca()
+        axis.grid(which='minor', alpha=0.2)
+        axis.grid(which='major', alpha=0.5)
+        #plt.yticks(np.arange(min(dslist[0].ylist), max(x)+1, 1.0))
 
-            plt.savefig(self.save_location + "/" +
-                        dataset.dataname + ".pdf", bbox_inches='tight')
+        if xlimits is not None:
+            axis.set_xlim(xlimits[0], xlimits[1])
 
-        return self.save_location
+        if self.interactive:
+            plt.show()
+
+        plt.savefig(save_path, bbox_inches='tight')
+        self.logger.log_verbose("Generated Graph " + save_path)
+        plt.close()
+        return save_path
 
     def butter_filter_data(self, raw, order, cutoff):
         """
@@ -99,6 +119,7 @@ class DataSet:
     """
     Datasets store lists of data points and a title, to make plotting easier
     """
+    t0_time = 0
 
     def __init__(self, dataname, xlist, ylist):
         """
@@ -111,3 +132,17 @@ class DataSet:
         self.dataname = dataname
         self.xlist = xlist
         self.ylist = ylist
+
+    def __str__(self):
+        return self.dataname
+
+    def set_t0(self, t0_time):
+        """
+        Adjust the x-values for a given t0 time
+
+        :param t0_time: the desired t0 time
+        """
+        self.t0_time = t0_time
+
+        for x_index, x_value in enumerate(self.xlist):
+            self.xlist[x_index] = float(x_value) - float(t0_time)
